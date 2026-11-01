@@ -163,10 +163,12 @@ var APP = {
   verseRef: '요한복음 15:5'
 };
 
-var COLOR = { main:'#7B4FC9', five_site:'#D2558F', five_online:'#B9A2E8', cell:'#DCEB6A', fri_site:'#86B032', fri_online:'#E6EDA6' };
-var TLABEL = { main:'대예배', five_site:'5부 현장', five_online:'5부 온라인', cell:'구역모임', fri_site:'금요철야 현장', fri_online:'금요철야 온라인' };
+var COLOR = { main:'#7B4FC9', five_site:'#D2558F', five_online:'#B9A2E8', cell:'#DCEB6A', fri_site:'#86B032', fri_online:'#E6EDA6', sun_absent:'#8A8494', fri_absent:'#8A8494' };
+var TLABEL = { main:'대예배', five_site:'5부 현장', five_online:'5부 온라인', cell:'구역모임', fri_site:'금요철야 현장', fri_online:'금요철야 온라인', sun_absent:'불참', fri_absent:'불참' };
 var SUNDAY_TYPES = ['main','five_site','five_online','cell'];
 var FRIDAY_TYPES = ['fri_site','fri_online'];
+var ABSENT_OF = { sunday:'sun_absent', friday:'fri_absent' };
+function isAbsent(t){ return t==='sun_absent'||t==='fri_absent'; }
 var ONLINE = { five_online:1, fri_online:1 };
 var NMETA = { sunday:['주일','b-sunday'], friday:['금요철야','b-friday'], monthly:['월 일정','b-monthly'], etc:['기타','b-etc'] };
 var DAYS = ['일','월','화','수','목','금','토'];
@@ -538,8 +540,8 @@ function treeSVG(board,counts,leaves){
     var x=lcx+dd*ca, y=lcy+dd*sa, rot=ang*180/Math.PI+90;
     x=Math.max(16,Math.min(W-16,x)); y=Math.max(18,y);
     var nick=lv.nick?String(lv.nick).slice(0,5):'';
-    if (day){ var lc=season==='autumn'?AUTUMN_C[li%3]:t.lf; s+=vineLeafSVG(x,y,rot,lc,t.vc,f1(li*0.4),season==='winter',nick); }
-    else s+=oliveSprigSVG(x,y,rot,f1(li*0.4),season==='winter',nick);
+    if (day){ var lc=season==='autumn'?AUTUMN_C[li%3]:t.lf; s+=vineLeafSVG(x,y,rot,lc,t.vc,f1(li*0.4),season==='winter',''); }
+    else s+=oliveSprigSVG(x,y,rot,f1(li*0.4),season==='winter','');
   });
   s+=particlesSVG(season,!day,R,W,H,34);
   return '<svg width="100%" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+(day?'우리 구역 포도나무':'우리 구역 올리브나무')+'">'+s+'</svg>';
@@ -813,15 +815,15 @@ function adminAtt(){
   if (!members.length) h+='<p class="muted">구역원 탭에서 구역원을 먼저 추가해주세요.</p>';
   members.forEach(function(m){
     var on=a.rec[m.id]||[];
-    h+='<div class="att-row"><div class="mname">'+esc(m.name)+'</div><div class="tbtns">'+types.map(function(t){
+    h+='<div class="att-row"><div class="mname">'+esc(m.name)+'</div><div class="tbtns">'+types.concat([ABSENT_OF[board]]).map(function(t){
       var sel=on.indexOf(t)>=0;
       return '<button class="tbtn" data-act="att-type" data-mid="'+esc(m.id)+'" data-t="'+t+'" style="'+(sel?'background:'+COLOR[t]+';border-color:'+COLOR[t]+';color:'+(t==='cell'||t==='fri_online'||t==='five_online'?INK:'#fff'):'')+'">'+
-        '<i class="dot" style="width:10px;height:10px;background:'+(sel?'#fff':COLOR[t])+'"></i>'+TLABEL[t].replace('금요철야 ','')+(ONLINE[t]?' <svg width="14" height="12" viewBox="-7 -8 14 13" aria-hidden="true">'+wifiMark(0,0,0.9)+'</svg>':'')+'</button>';
+        (isAbsent(t)?'<span aria-hidden="true" style="font-size:12px">✕</span>':'<i class="dot" style="width:10px;height:10px;background:'+(sel?'#fff':COLOR[t])+'"></i>')+TLABEL[t].replace('금요철야 ','')+(ONLINE[t]?' <svg width="14" height="12" viewBox="-7 -8 14 13" aria-hidden="true">'+wifiMark(0,0,0.9)+'</svg>':'')+'</button>';
     }).join('')+'</div></div>';
   });
   h+='</div>';
-  var cnt=0; Object.keys(a.rec).forEach(function(k){ cnt+=a.rec[k].length; });
-  h+='<div class="sticky"><button class="btn primary block" data-act="att-save">'+(a.dirty?'저장하기 · 열매 '+cnt+'알':'저장됨 · 열매 '+cnt+'알')+'</button></div>';
+  var cnt=0, abs=0; Object.keys(a.rec).forEach(function(k){ a.rec[k].forEach(function(t){ if(isAbsent(t)) abs++; else cnt++; }); });
+  h+='<div class="sticky"><button class="btn primary block" data-act="att-save">'+(a.dirty?'저장하기':'저장됨')+' · 열매 '+cnt+'알'+(abs?' · 불참 '+abs+'명':'')+'</button></div>';
   return h;
 }
 function adminNotice(){
@@ -976,6 +978,9 @@ document.addEventListener('click',function(ev){
       cur.push(t);
       var pair={five_site:'five_online',five_online:'five_site',fri_site:'fri_online',fri_online:'fri_site'}[t];
       if (pair && cur.indexOf(pair)>=0) cur.splice(cur.indexOf(pair),1);
+      var grp=(SUNDAY_TYPES.indexOf(t)>=0||t==='sun_absent')?SUNDAY_TYPES:FRIDAY_TYPES, ab=grp===SUNDAY_TYPES?'sun_absent':'fri_absent';
+      if (isAbsent(t)) cur=cur.filter(function(x){ return grp.indexOf(x)<0; });
+      else if (cur.indexOf(ab)>=0) cur.splice(cur.indexOf(ab),1);
     }
     a.rec[mid]=cur; a.dirty=true; var y=window.scrollY; render(); window.scrollTo(0,y); return;
   }
@@ -1074,10 +1079,10 @@ var MOCK = (function(){
   return {
     getPublicData:function(){
       var cur=pidx(DEMO_TODAY), counts={main:0,five_site:0,five_online:0,cell:0,fri_site:0,fri_online:0}, tg={};
-      att.forEach(function(r){ if(pidx(r.date)===cur) counts[r.type]++; if(r.date>='2026-11-10') tg[r.memberId]=1; });
+      att.forEach(function(r){ if(pidx(r.date)===cur) counts[r.type]++; if(r.date>='2026-11-10' && !isAbsent(r.type)) tg[r.memberId]=1; });
       var nick={}; reqs.forEach(function(q){ if(q.status==='승인') nick[q.memberId]=q.nick; });
       return {appName:'우리 구역 송이송이',today:DEMO_TODAY,period:{idx:cur,label:plabel(cur)},counts:counts,together:Object.keys(tg).length,
-        leaves:members.filter(function(m){ return m.active; }).map(function(m){ return {nick:nick[m.id]||''}; }),
+        leaves:members.filter(function(m){ return m.active; }).map(function(){ return {}; }),
         notices:notices.map(function(n){ return {id:n.id,date:n.date,type:n.type,title:n.title,pinned:n.pinned,created:n.created,raw:n.type==='monthly'?filterMonthly(n.raw):n.raw}; }),slots:{sunday:16,friday:8}};
     },
     adminLogin:function(c){ if(c!=='admin292') throw new Error('관리자 코드가 맞지 않아요.'); return 'demo-token'; },
@@ -1097,9 +1102,9 @@ var MOCK = (function(){
     myLogin:function(n,p){ var q=reqs.filter(function(x){ return x.nick===n&&x.pin===p; })[0]; if(!q) throw new Error('별명이나 번호가 맞지 않아요.'); if(q.status!=='승인') throw new Error('아직 구역장님 확인을 기다리고 있어요.'); return 'my-'+q.id; },
     myLogout:function(){ return true; },
     getAwardData:function(){ var cur=pidx(DEMO_TODAY), nick={}; reqs.forEach(function(q){ if(q.status==='승인') nick[q.memberId]=q.nick; });
-      return {current:cur,periods:[{idx:0,label:plabel(0)}],slots:{sunday:16,friday:8},members:members.map(function(m){ var dd={}; att.filter(function(r){ return r.memberId===m.id; }).sort(function(a,b){ return a.date<b.date?-1:1; }).forEach(function(r){ var p=pidx(r.date); dd[p]=dd[p]||{sunday:[],friday:[]}; (FRIDAY_TYPES.indexOf(r.type)>=0?dd[p].friday:dd[p].sunday).push(r.type); }); return {id:m.id,name:m.name,active:m.active,nick:nick[m.id]||'',data:dd}; })}; },
+      return {current:cur,periods:[{idx:0,label:plabel(0)}],slots:{sunday:16,friday:8},members:members.map(function(m){ var dd={}; att.filter(function(r){ return r.memberId===m.id; }).sort(function(a,b){ return a.date<b.date?-1:1; }).forEach(function(r){ if(isAbsent(r.type)) return; var p=pidx(r.date); dd[p]=dd[p]||{sunday:[],friday:[]}; (FRIDAY_TYPES.indexOf(r.type)>=0?dd[p].friday:dd[p].sunday).push(r.type); }); return {id:m.id,name:m.name,active:m.active,nick:nick[m.id]||'',data:dd}; })}; },
     getMyFruit:function(tk){ var q=reqs.filter(function(x){ return 'my-'+x.id===tk; })[0]; if(!q) throw new Error('다시 로그인해주세요.'); var cur=pidx(DEMO_TODAY), ps=[]; for(var i=0;i<=cur;i++) ps.push({idx:i,label:plabel(i),sunday:[],friday:[]});
-      att.filter(function(r){ return r.memberId===q.memberId; }).sort(function(a,b){ return a.date<b.date?-1:1; }).forEach(function(r){ var p=pidx(r.date); (FRIDAY_TYPES.indexOf(r.type)>=0?ps[p].friday:ps[p].sunday).push(r.type); });
+      att.filter(function(r){ return r.memberId===q.memberId; }).sort(function(a,b){ return a.date<b.date?-1:1; }).forEach(function(r){ if(isAbsent(r.type)) return; var p=pidx(r.date); (FRIDAY_TYPES.indexOf(r.type)>=0?ps[p].friday:ps[p].sunday).push(r.type); });
       return {nick:q.nick,current:cur,periods:ps,slots:{sunday:16,friday:8}}; }
   };
 })();
